@@ -1,0 +1,263 @@
+{% verbatim %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini CRM</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#1c2430;--muted:#6b7686;--line:#e3e7ee;--accent:#3b5bdb;--danger:#d6336c}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:18px;margin:0}
+main{max-width:1050px;margin:24px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff}
+textarea{min-height:70px;resize:vertical}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:7px;padding:8px 14px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--danger);border-color:var(--danger)}
+button:disabled{opacity:.5;cursor:default}
+.hidden{display:none!important}
+.auth{max-width:380px;margin:60px auto}
+.tabs{display:flex;gap:8px;margin-bottom:8px}
+.tabs button{flex:1}.tabs button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.err{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.stat b{display:block;font-size:22px}.stat span{color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.toolbar input{flex:2;min-width:180px}.toolbar select{flex:1;min-width:130px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}
+th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+tbody tr{cursor:pointer}tbody tr:hover{background:#f0f3ff}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.s-new{background:#e7f0ff;color:#1c5fd1}.s-contacted{background:#fff3d6;color:#9a6700}
+.s-qualified{background:#efe5ff;color:#6f42c1}.s-won{background:#dcf5e3;color:#1a7f37}.s-lost{background:#fde2e4;color:#c0293f}
+.pager{display:flex;align-items:center;justify-content:space-between;margin-top:12px;color:var(--muted)}
+.pager div{display:flex;gap:8px;align-items:center}
+.empty{text-align:center;color:var(--muted);padding:30px}
+.overlay{position:fixed;inset:0;background:rgba(15,20,30,.45);display:flex;justify-content:center;align-items:flex-start;padding:30px 12px;overflow:auto}
+.modal{background:#fff;border-radius:12px;max-width:560px;width:100%;padding:20px}
+.modal h2{margin:0 0 4px;font-size:18px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.actions{display:flex;gap:10px;justify-content:space-between;margin-top:16px}
+.timeline{margin:6px 0 0;padding:0;list-style:none;max-height:160px;overflow:auto;font-size:13px}
+.timeline li{padding:6px 0;border-bottom:1px dashed var(--line)}.timeline small{color:var(--muted)}
+@media(max-width:600px){.row{grid-template-columns:1fr}.hide-sm{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mini CRM</h1>
+  <div id="userbox" class="hidden"><span id="username"></span> <button id="logoutBtn">Log out</button></div>
+</header>
+<main>
+  <!-- AUTH -->
+  <section id="authView" class="card auth hidden">
+    <div class="tabs"><button id="tabLogin" class="active">Log in</button><button id="tabRegister">Register</button></div>
+    <label>Username</label><input id="aUser" autocomplete="username">
+    <div id="emailWrap" class="hidden"><label>Email (optional)</label><input id="aEmail" type="email"></div>
+    <label>Password</label><input id="aPass" type="password" autocomplete="current-password">
+    <div class="err" id="authErr"></div>
+    <button class="primary" id="authBtn" style="width:100%">Log in</button>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:0">API docs: <a href="/api/docs/">/api/docs/</a></p>
+  </section>
+
+  <!-- APP -->
+  <section id="appView" class="hidden">
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <input id="search" placeholder="Search name, phone, email, note…">
+      <select id="statusFilter"><option value="">All statuses</option></select>
+      <select id="sort">
+        <option value="-created_at">Newest first</option><option value="created_at">Oldest first</option>
+        <option value="name">Name A–Z</option><option value="-name">Name Z–A</option>
+        <option value="-updated_at">Recently updated</option>
+      </select>
+      <button class="primary" id="newBtn">+ New lead</button>
+    </div>
+    <div class="card" style="padding:6px 12px">
+      <table>
+        <thead><tr><th>Name</th><th class="hide-sm">Contact</th><th class="hide-sm">Source</th><th>Status</th><th class="hide-sm">Created</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty hidden" id="empty">No leads found.</div>
+    </div>
+    <div class="pager"><span id="count"></span>
+      <div><button id="prev">← Prev</button><span id="pageInfo"></span><button id="next">Next →</button></div>
+    </div>
+  </section>
+</main>
+
+<!-- MODAL -->
+<div class="overlay hidden" id="overlay">
+  <div class="modal">
+    <h2 id="mTitle">New lead</h2>
+    <label>Name *</label><input id="fName">
+    <div class="row">
+      <div><label>Phone</label><input id="fPhone" placeholder="+998901234567"></div>
+      <div><label>Email</label><input id="fEmail" type="email"></div>
+    </div>
+    <div class="row">
+      <div><label>Source</label><select id="fSource"></select></div>
+      <div><label>Status</label><select id="fStatus"></select></div>
+    </div>
+    <label>Note</label><textarea id="fNote"></textarea>
+    <div class="err" id="mErr"></div>
+    <div id="historyBox" class="hidden"><label>History</label><ul class="timeline" id="history"></ul></div>
+    <div class="actions">
+      <button class="danger hidden" id="delBtn">Delete</button>
+      <span style="flex:1"></span>
+      <button id="cancelBtn">Close</button>
+      <button class="primary" id="saveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUSES=[["new","New"],["contacted","Contacted"],["qualified","Qualified"],["won","Won"],["lost","Lost"]];
+const SOURCES=[["website","Website"],["telegram","Telegram"],["instagram","Instagram"],["referral","Referral"],["phone","Phone call"],["other","Other"]];
+const $=id=>document.getElementById(id);
+const state={token:localStorage.getItem("crm_token"),page:1,pages:1,editing:null,mode:"login"};
+
+function el(tag,attrs={},...kids){const e=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs))k==="class"?e.className=v:e.setAttribute(k,v);
+  kids.forEach(k=>e.append(k));return e}
+const fillSelect=(sel,opts,withAll)=>{opts.forEach(([v,l])=>sel.append(new Option(l,v)))};
+fillSelect($("statusFilter"),STATUSES);fillSelect($("fStatus"),STATUSES);fillSelect($("fSource"),SOURCES);
+
+async function api(path,{method="GET",body}={}){
+  const res=await fetch("/api"+path,{method,headers:{"Content-Type":"application/json",...(state.token?{Authorization:"Token "+state.token}:{})},body:body?JSON.stringify(body):undefined});
+  if(res.status===204)return null;
+  let data=null;try{data=await res.json()}catch(_){}
+  if(!res.ok){
+    if(res.status===401&&!path.startsWith("/auth/"))logout();
+    throw {status:res.status,data}
+  }
+  return data
+}
+function errText(e){
+  const d=e&&e.data&&e.data.error;if(!d)return "Network or server error";
+  const det=d.details;
+  if(det&&typeof det==="object"){
+    return Object.entries(det).map(([k,v])=>(k==="non_field_errors"?"":k+": ")+[].concat(v).join(", ")).join(" · ")
+  }
+  return d.message
+}
+const fmt=iso=>new Date(iso).toLocaleString([], {dateStyle:"medium",timeStyle:"short"});
+const label=(list,v)=>(list.find(x=>x[0]===v)||[v,v])[1];
+const badge=s=>el("span",{class:"badge s-"+s},label(STATUSES,s));
+
+/* ---------- auth ---------- */
+function showAuth(){state.token=null;localStorage.removeItem("crm_token");
+  $("authView").classList.remove("hidden");$("appView").classList.add("hidden");$("userbox").classList.add("hidden")}
+function setMode(m){state.mode=m;
+  $("tabLogin").classList.toggle("active",m==="login");$("tabRegister").classList.toggle("active",m==="register");
+  $("emailWrap").classList.toggle("hidden",m!=="register");$("authBtn").textContent=m==="login"?"Log in":"Create account";$("authErr").textContent=""}
+$("tabLogin").onclick=()=>setMode("login");$("tabRegister").onclick=()=>setMode("register");
+$("authBtn").onclick=async()=>{
+  $("authErr").textContent="";
+  const body={username:$("aUser").value.trim(),password:$("aPass").value};
+  if(state.mode==="register")body.email=$("aEmail").value.trim();
+  try{
+    const r=await api(state.mode==="login"?"/auth/login/":"/auth/register/",{method:"POST",body});
+    state.token=r.token;localStorage.setItem("crm_token",r.token);enterApp(r.user)
+  }catch(e){$("authErr").textContent=errText(e)}
+};
+$("aPass").addEventListener("keydown",e=>{if(e.key==="Enter")$("authBtn").click()});
+function logout(){if(state.token)api("/auth/logout/",{method:"POST"}).catch(()=>{});showAuth()}
+$("logoutBtn").onclick=logout;
+function enterApp(user){
+  $("authView").classList.add("hidden");$("appView").classList.remove("hidden");$("userbox").classList.remove("hidden");
+  $("username").textContent=user.username;state.page=1;refresh()
+}
+
+/* ---------- list ---------- */
+const refresh=()=>{loadStats();loadLeads()};
+async function loadStats(){
+  try{const s=await api("/leads/stats/");const box=$("stats");box.replaceChildren();
+    const add=(n,l)=>box.append(el("div",{class:"card stat"},el("b",{},String(n)),el("span",{},l)));
+    add(s.total,"Total leads");STATUSES.forEach(([k,l])=>add(s.by_status[k],l));
+    add(s.conversion_rate+"%","Conversion");add(s.new_last_7_days,"New (7 days)")}catch(_){}
+}
+async function loadLeads(){
+  const p=new URLSearchParams({page:state.page,ordering:$("sort").value});
+  if($("search").value.trim())p.set("search",$("search").value.trim());
+  if($("statusFilter").value)p.set("status",$("statusFilter").value);
+  try{
+    const d=await api("/leads/?"+p);
+    state.pages=Math.max(1,Math.ceil(d.count/10));
+    const rows=$("rows");rows.replaceChildren();
+    d.results.forEach(l=>{
+      const tr=el("tr",{},el("td",{},l.name),
+        el("td",{class:"hide-sm"},l.phone||l.email||"—"),
+        el("td",{class:"hide-sm"},label(SOURCES,l.source)),
+        el("td",{},badge(l.status)),
+        el("td",{class:"hide-sm"},fmt(l.created_at)));
+      tr.onclick=()=>openModal(l);rows.append(tr)});
+    $("empty").classList.toggle("hidden",d.results.length>0);
+    $("count").textContent=d.count+" lead"+(d.count===1?"":"s");
+    $("pageInfo").textContent=`Page ${state.page} / ${state.pages}`;
+    $("prev").disabled=state.page<=1;$("next").disabled=state.page>=state.pages;
+  }catch(e){
+    if(e.status===404&&state.page>1){state.page--;loadLeads()}
+  }
+}
+$("prev").onclick=()=>{state.page--;loadLeads()};
+$("next").onclick=()=>{state.page++;loadLeads()};
+let t;$("search").oninput=()=>{clearTimeout(t);t=setTimeout(()=>{state.page=1;loadLeads()},300)};
+$("statusFilter").onchange=$("sort").onchange=()=>{state.page=1;loadLeads()};
+
+/* ---------- modal ---------- */
+function openModal(lead){
+  state.editing=lead||null;$("mErr").textContent="";
+  $("mTitle").textContent=lead?"Lead #"+lead.id:"New lead";
+  $("fName").value=lead?lead.name:"";$("fPhone").value=lead?lead.phone:"";
+  $("fEmail").value=lead?lead.email:"";$("fSource").value=lead?lead.source:"other";
+  $("fStatus").value=lead?lead.status:"new";$("fNote").value=lead?lead.note:"";
+  $("delBtn").classList.toggle("hidden",!lead);$("historyBox").classList.toggle("hidden",!lead);
+  $("overlay").classList.remove("hidden");
+  if(lead)loadHistory(lead.id)
+}
+async function loadHistory(id){
+  const ul=$("history");ul.replaceChildren();
+  try{(await api(`/leads/${id}/activities/`)).forEach(a=>
+    ul.append(el("li",{},a.message+" ",el("small",{},`— ${a.actor||"system"}, ${fmt(a.created_at)}`))))}catch(_){}
+}
+const closeModal=()=>$("overlay").classList.add("hidden");
+$("cancelBtn").onclick=closeModal;
+$("overlay").addEventListener("mousedown",e=>{if(e.target.id==="overlay")closeModal()});
+$("newBtn").onclick=()=>openModal(null);
+
+$("fStatus").onchange=async()=>{ // instant status change on existing leads
+  if(!state.editing)return;
+  try{state.editing=await api(`/leads/${state.editing.id}/status/`,{method:"POST",body:{status:$("fStatus").value}});
+    $("mErr").textContent="";loadHistory(state.editing.id);refresh()}
+  catch(e){$("mErr").textContent=errText(e);$("fStatus").value=state.editing.status}
+};
+$("saveBtn").onclick=async()=>{
+  const body={name:$("fName").value,phone:$("fPhone").value,email:$("fEmail").value,
+    source:$("fSource").value,status:$("fStatus").value,note:$("fNote").value};
+  try{
+    if(state.editing)await api(`/leads/${state.editing.id}/`,{method:"PATCH",body});
+    else await api("/leads/",{method:"POST",body});
+    closeModal();state.page=state.editing?state.page:1;refresh()
+  }catch(e){$("mErr").textContent=errText(e)}
+};
+$("delBtn").onclick=async()=>{
+  if(!confirm("Delete this lead permanently?"))return;
+  try{await api(`/leads/${state.editing.id}/`,{method:"DELETE"});closeModal();refresh()}
+  catch(e){$("mErr").textContent=errText(e)}
+};
+
+/* ---------- boot ---------- */
+(async()=>{
+  if(!state.token)return showAuth();
+  try{enterApp(await api("/auth/me/"))}catch(_){showAuth()}
+})();
+</script>
+</body>
+</html>{% endverbatim %}
